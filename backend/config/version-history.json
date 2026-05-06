@@ -1,0 +1,84 @@
+{
+  "currentVersion": "5.4.2",
+  "history": [
+    {
+      "version": "5.4.2",
+      "date": "2026-04-28",
+      "title": "Controle de acesso e ordenacao de tickets",
+      "changes": [
+        "Ordenacao de tickets com alternancia entre mais antigos e mais recentes em Aguardando e Atendendo",
+        "Persistencia local da preferencia de ordenacao por operador",
+        "Aplicacao de controle por empresa/plano para Servicos e Agendamentos com bloqueio frontend e backend"
+      ]
+    },
+    {
+      "version": "5.4.1",
+      "date": "2026-04-28",
+      "title": "Correcao de acesso - Servicos e Agendamentos por empresa",
+      "changes": [
+        "Aba Servicos passa a respeitar Agendamentos habilitado por empresa",
+        "Bloqueio visual evita chamadas indevidas de payment-settings quando agendamento esta desabilitado",
+        "Ajustes de leitura de flags servicesEnabled e schedulingEnabled na tela de Configuracoes"
+      ]
+    },
+    {
+      "version": "5.4.0",
+      "date": "2026-04-27",
+      "title": "Recursos em andamento - Agendamentos e Servico ATC",
+      "changes": [
+        "Modulo de agendamentos iniciado com estrutura de servicos e sessoes",
+        "Fluxo de servico ATC iniciado para atendimento orientado por servico",
+        "Persistencia e base de integracao prontas para continuidade da implementacao"
+      ]
+    },
+    {
+      "version": "5.3.9",
+      "date": "2026-04-16",
+      "title": "Padronizacao de layout - Conexoes e Messages API",
+      "changes": [
+        "Tela de Conexoes alinhada ao mesmo espaco lateral da tela de Usuarios",
+        "Tela de Messages API ajustada para usar o MainContainer padrao",
+        "Remocao de margens fixas que quebravam consistencia visual entre paginas"
+      ]
+    },
+    {
+      "version": "5.3.8",
+      "date": "2026-04-16",
+      "title": "Correcao critica - Fluxo por conexao",
+      "changes": [
+        "Adicionado controle persistido flowAutomationEnabled por conexao",
+        "Runtime de fluxo passa a respeitar conexao com automacao desativada",
+        "Ao desativar fluxo na conexao, execucoes pendentes sao encerradas automaticamente"
+      ]
+    },
+    {
+      "version": "5.3.7",
+      "date": "2026-04-13",
+      "title": "Release aprovada - Aparencia e Versionamento",
+      "changes": [
+        "Correcao de codificacao de textos no painel",
+        "Ajustes de UX no seletor Tema padrao e botoes de edicao",
+        "Correcao de persistencia da Aparencia por empresa",
+        "Botao de versao com modal de historico de releases"
+      ]
+    },
+    {
+      "version": "5.3.6",
+      "date": "2026-04-13",
+      "title": "Painel de Aparencia e Historico de Versoes",
+      "changes": [
+        "Novo painel de Aparencia por empresa",
+        "Correcao de codificacao de textos",
+        "Versao no menu com modal de historico"
+      ]
+    },
+    {
+      "version": "5.3.5",
+      "date": "2026-04-01",
+      "title": "Base Estavel",
+      "changes": [
+        "Versao base do sistema antes do pacote de melhorias visuais."
+      ]
+    }
+  ]
+}
