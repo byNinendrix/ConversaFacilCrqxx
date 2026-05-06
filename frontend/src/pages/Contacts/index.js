@@ -38,6 +38,7 @@ import NewTicketModal from "../../components/NewTicketModal";
 import { SocketContext } from "../../context/Socket/SocketContext";
 import { generateColor } from "../../helpers/colorGenerator";
 import { getInitials } from "../../helpers/getInitials";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 import {CSVLink} from "react-csv";
 
 import PopupState, { bindTrigger, bindMenu } from "material-ui-popup-state";
@@ -515,7 +516,7 @@ function getDateLastMessage(contact) {
                                         />
                                     </TableCell>
                                     <TableCell style={{ paddingLeft: 40 }}>
-                                        {<Avatar src={contact.profilePicUrl} />}
+                                        {<Avatar src={normalizeProfilePicUrl(contact?.profilePicUrl)} />}
                                     </TableCell>
                   <TableCell>{contact.name}</TableCell>
                   <TableCell align="center">{contact.number}</TableCell>

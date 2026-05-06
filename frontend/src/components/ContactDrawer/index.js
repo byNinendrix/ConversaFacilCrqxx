@@ -23,6 +23,7 @@ import { ContactNotes } from "../ContactNotes";
 
 import { generateColor } from "../../helpers/colorGenerator";
 import { getInitials } from "../../helpers/getInitials";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const drawerWidth = 320;
 
@@ -134,7 +135,7 @@ const ContactDrawer = ({ open, handleDrawerClose, contact, ticket, loading }) =>
 								titleTypographyProps={{ noWrap: true }}
 								subheaderTypographyProps={{ noWrap: true }}
 								avatar={<Avatar
-                      src={contact.profilePicUrl}
+                      src={normalizeProfilePicUrl(contact?.profilePicUrl)}
                       alt="contact_image"
                       style={{ width: 60, height: 60, backgroundColor: generateColor(contact?.number), color: "white", fontWeight: "bold" }}
                     >

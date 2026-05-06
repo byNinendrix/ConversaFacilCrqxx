@@ -10,6 +10,7 @@ import { AuthContext } from "../../context/Auth/AuthContext";
 import { Button, Divider, } from "@material-ui/core";
 import { useTheme } from "@material-ui/core/styles"; // Importar useTheme
 import NewTicketModal from "../NewTicketModal";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const VCardPreview = ({ contact, numbers }) => {
     const history = useHistory();
@@ -148,7 +149,7 @@ const VCardPreview = ({ contact, numbers }) => {
             />
                 <Grid container spacing={1}>
                     <Grid item xs={1}>
-                        <Avatar src={selectedContact.profilePicUrl} />
+                        <Avatar src={normalizeProfilePicUrl(selectedContact?.profilePicUrl)} />
                     </Grid>
                     <Grid item xs={9}>
                         <Typography style={{ marginTop: "12px", marginLeft: "10px", color: theme.palette.text.vcard }} variant="subtitle1" gutterBottom>

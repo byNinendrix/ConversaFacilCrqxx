@@ -4,6 +4,7 @@ import { Avatar, CardHeader } from "@material-ui/core";
 import { getInitials } from "../../helpers/getInitials";
 import { generateColor } from "../../helpers/colorGenerator";
 import { i18n } from "../../translate/i18n";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const TicketInfo = ({ contact, ticket, onClick }) => {
 	const { user } = ticket
@@ -39,7 +40,7 @@ const TicketInfo = ({ contact, ticket, onClick }) => {
 			subheaderTypographyProps={{ noWrap: true }}
 			avatar={        <Avatar
           style={{ backgroundColor: generateColor(contact?.number), color: "white", fontWeight: "bold" }}
-          src={contact.profilePicUrl}
+          src={normalizeProfilePicUrl(contact?.profilePicUrl)}
           alt="contact_image">
           {getInitials(contact?.name)}
         </Avatar>}

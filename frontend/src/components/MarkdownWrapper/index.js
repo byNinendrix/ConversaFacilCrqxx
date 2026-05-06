@@ -1,6 +1,7 @@
 import Avatar from "@material-ui/core/Avatar";
 import Markdown from "markdown-to-jsx";
 import React from "react";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const elements = [
 	"a",
@@ -215,7 +216,7 @@ const MarkdownWrapper = ({ children, message }) => {
 	if (type === 'contactMessage') {
 		return (
 			<div style={vcardStyle}>
-				<Avatar style={avatar} src={message.contact.profilePicUrl} alt="contact_image" />
+				<Avatar style={avatar} src={normalizeProfilePicUrl(message?.contact?.profilePicUrl)} alt="contact_image" />
 				<div style={infoStyle}>
 					<p style={p}><strong>Nome:</strong> {contact}</p>
 					<p style={p}><strong>Número:</strong> {number}</p>

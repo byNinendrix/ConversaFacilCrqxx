@@ -24,6 +24,7 @@ import TicketMessagesDialog from "../TicketMessagesDialog";
 import TransferTicketModalCustom from "../TransferTicketModalCustom";
 import { getInitials } from "../../helpers/getInitials";
 import { generateColor } from "../../helpers/colorGenerator";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const useStyles = makeStyles((theme) => ({
   ticket: {
@@ -566,7 +567,7 @@ const TicketListItemCustom = ({ ticket }) => {
           <Avatar
             className={classes.avatar}
             style={{ backgroundColor: generateColor(ticket?.contact?.number) }}
-            src={ticket?.contact?.profilePicUrl}
+            src={normalizeProfilePicUrl(ticket?.contact?.profilePicUrl)}
           >
             {getInitials(ticket?.contact?.name || "")}
           </Avatar>

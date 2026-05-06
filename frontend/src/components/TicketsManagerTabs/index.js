@@ -502,7 +502,9 @@ const TicketsManagerTabs = () => {
 
       const payload = bulkCloseScope === "queue"
         ? { queueId: Number(bulkQueueId) }
-        : { whatsappId: Number(bulkWhatsappId) };
+        : bulkCloseScope === "whatsapp"
+          ? { whatsappId: Number(bulkWhatsappId) }
+          : { scope: "unassigned", withoutQueueAndWhatsapp: true };
 
       const { data } = await api.post("/tickets/closeAll", payload);
       const count = Number(data?.closedCount || 0);
@@ -565,7 +567,12 @@ const TicketsManagerTabs = () => {
 
   const sortOrderParam = sortOrder === "default" ? undefined : sortOrder;
 
-  const isBulkActionDisabled = bulkCloseScope === "queue" ? !bulkQueueId : !bulkWhatsappId;
+  const isBulkActionDisabled =
+    bulkCloseScope === "queue"
+      ? !bulkQueueId
+      : bulkCloseScope === "whatsapp"
+        ? !bulkWhatsappId
+        : false;
 
   return (
     <Paper elevation={0} variant='outlined' className={classes.ticketsWrapper}>
@@ -605,6 +612,7 @@ const TicketsManagerTabs = () => {
             >
               <MenuItem value='queue'>Fila</MenuItem>
               <MenuItem value='whatsapp'>Conexao</MenuItem>
+              <MenuItem value='unassigned'>Sem fila e sem conexao</MenuItem>
             </Select>
           </FormControl>
 
@@ -634,7 +642,7 @@ const TicketsManagerTabs = () => {
                 )}
               </Select>
             </FormControl>
-          ) : (
+          ) : bulkCloseScope === "whatsapp" ? (
             <FormControl
               size='small'
               variant='outlined'
@@ -660,6 +668,10 @@ const TicketsManagerTabs = () => {
                 )}
               </Select>
             </FormControl>
+          ) : (
+            <DialogContentText className={classes.bulkDialogText}>
+              Este modo vai finalizar apenas tickets abertos/aguardando que estejam sem fila e sem conexao.
+            </DialogContentText>
           )}
         </DialogContent>
         <DialogActions className={classes.dialogActions}>

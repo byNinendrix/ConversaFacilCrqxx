@@ -22,6 +22,7 @@ import MarkdownWrapper from "../MarkdownWrapper";
 import { Tooltip } from "@material-ui/core";
 import { AuthContext } from "../../context/Auth/AuthContext";
 import toastError from "../../errors/toastError";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const useStyles = makeStyles((theme) => ({
   ticket: {
@@ -162,7 +163,7 @@ const TicketListItem = ({ ticket }) => {
           ></span>
         </Tooltip>
         <ListItemAvatar>
-          <Avatar src={ticket?.contact?.profilePicUrl} />
+          <Avatar src={normalizeProfilePicUrl(ticket?.contact?.profilePicUrl)} />
         </ListItemAvatar>
         <ListItemText
           disableTypography

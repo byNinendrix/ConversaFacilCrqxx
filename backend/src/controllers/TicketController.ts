@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import { getIO } from "../libs/socket";
 import Ticket from "../models/Ticket";
 import AppError from "../errors/AppError";
+import { logger } from "../utils/logger";
 
 import CreateTicketService from "../services/TicketServices/CreateTicketService";
 import DeleteTicketService from "../services/TicketServices/DeleteTicketService";
@@ -250,12 +251,16 @@ export const closeAll = async (req: Request, res: Response): Promise<Response> =
   const {
     queueId,
     whatsappId,
+    scope,
+    withoutQueueAndWhatsapp,
     statuses,
     status,
     selectedQueueIds
   } = req.body as {
     queueId?: number | string;
     whatsappId?: number | string;
+    scope?: string;
+    withoutQueueAndWhatsapp?: boolean;
     statuses?: string[];
     status?: string;
     selectedQueueIds?: Array<number | string>;
@@ -268,7 +273,17 @@ export const closeAll = async (req: Request, res: Response): Promise<Response> =
     parsedQueueId = Number(selectedQueueIds[0]);
   }
 
-  if ((!parsedQueueId && !parsedWhatsappId) || (parsedQueueId && parsedWhatsappId)) {
+  const shouldCloseWithoutQueueAndWhatsapp =
+    Boolean(withoutQueueAndWhatsapp) || String(scope || "").toLowerCase() === "unassigned";
+
+  if (shouldCloseWithoutQueueAndWhatsapp && (parsedQueueId || parsedWhatsappId)) {
+    throw new AppError("Informe apenas um filtro: sem fila e sem conexao OU fila/conexao.", 400);
+  }
+
+  if (
+    !shouldCloseWithoutQueueAndWhatsapp &&
+    ((!parsedQueueId && !parsedWhatsappId) || (parsedQueueId && parsedWhatsappId))
+  ) {
     throw new AppError("Informe apenas um filtro: fila OU conexao.", 400);
   }
 
@@ -302,6 +317,11 @@ export const closeAll = async (req: Request, res: Response): Promise<Response> =
     where.whatsappId = parsedWhatsappId;
   }
 
+  if (shouldCloseWithoutQueueAndWhatsapp) {
+    where.queueId = { [Op.is]: null };
+    where.whatsappId = { [Op.is]: null };
+  }
+
   const io = getIO();
 
   const { rows: tickets } = await Ticket.findAndCountAll({
@@ -309,38 +329,58 @@ export const closeAll = async (req: Request, res: Response): Promise<Response> =
     order: [["updatedAt", "DESC"]]
   });
 
-  for (const ticket of tickets) {
-    const oldStatus = ticket.status;
-    await ticket.update({
-      status: "closed",
-      useIntegration: false,
-      promptId: null,
-      integrationId: null,
-      unreadMessages: 0
-    });
+  let closedCount = 0;
+  let failedCount = 0;
 
-    io.to(`${ticket.id}`)
-      .to(`company-${companyId}-${oldStatus}`)
-      .to(`company-${companyId}-notification`)
-      .to(`queue-${ticket.queueId}-${oldStatus}`)
-      .to(`queue-${ticket.queueId}-notification`)
-      .emit(`company-${companyId}-ticket`, {
+  for (const ticket of tickets) {
+    try {
+      const oldStatus = ticket.status;
+      await ticket.update({
+        status: "closed",
+        useIntegration: false,
+        promptId: null,
+        integrationId: null,
+        unreadMessages: 0
+      });
+
+      let deleteEmit = io.to(`${ticket.id}`)
+        .to(`company-${companyId}-${oldStatus}`)
+        .to(`company-${companyId}-notification`);
+
+      if (ticket.queueId != null) {
+        deleteEmit = deleteEmit
+          .to(`queue-${ticket.queueId}-${oldStatus}`)
+          .to(`queue-${ticket.queueId}-notification`);
+      }
+
+      deleteEmit.emit(`company-${companyId}-ticket`, {
         action: "delete",
         ticketId: ticket.id
       });
 
-    io.to(`company-${companyId}-closed`)
-      .to(`queue-${ticket.queueId}-closed`)
-      .emit(`company-${companyId}-ticket`, {
+      let updateEmit = io.to(`company-${companyId}-closed`);
+      if (ticket.queueId != null) {
+        updateEmit = updateEmit.to(`queue-${ticket.queueId}-closed`);
+      }
+
+      updateEmit.emit(`company-${companyId}-ticket`, {
         action: "update",
         ticket
       });
+
+      closedCount += 1;
+    } catch (error) {
+      failedCount += 1;
+      logger.error(error);
+    }
   }
 
   return res.status(200).json({
-    closedCount: tickets.length,
+    closedCount,
+    failedCount,
     queueId: parsedQueueId,
-    whatsappId: parsedWhatsappId
+    whatsappId: parsedWhatsappId,
+    withoutQueueAndWhatsapp: shouldCloseWithoutQueueAndWhatsapp
   });
 };
 
