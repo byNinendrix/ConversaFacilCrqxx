@@ -83,6 +83,7 @@ import { provider } from "./providers";
 import { SimpleObjectCache } from "../../helpers/simpleObjectCache";
 import SendWhatsAppMessage from "./SendWhatsAppMessage";
 import { getMessageOptions } from "./SendWhatsAppMedia";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 
 const request = require("request");
 const fs = require("fs");
@@ -608,13 +609,13 @@ const verifyContact = async (
     profilePicUrl = await wbot.profilePictureUrl(msgContact.id);
   } catch (e) {
     Sentry.captureException(e);
-    profilePicUrl = `${process.env.FRONTEND_URL}/nopicture.png`;
+    profilePicUrl = normalizeProfilePicUrl(null);
   }
 
   const contactData = {
     name: msgContact?.name || msgContact.id.replace(/\D/g, ""),
     number: msgContact.id.replace(/\D/g, ""),
-    profilePicUrl,
+    profilePicUrl: normalizeProfilePicUrl(profilePicUrl),
     isGroup: msgContact.id.includes("g.us"),
     companyId,
     whatsappId: wbot.id

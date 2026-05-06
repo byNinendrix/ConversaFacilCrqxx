@@ -2,6 +2,7 @@ import { getIO } from "../../libs/socket";
 import Contact from "../../models/Contact";
 import ContactCustomField from "../../models/ContactCustomField";
 import { isNil } from "lodash";
+import { normalizeProfilePicUrl } from "../../helpers/normalizeProfilePicUrl";
 interface ExtraInfo extends ContactCustomField {
   name: string;
   value: string;
@@ -31,6 +32,7 @@ const CreateOrUpdateContactService = async ({
   disableBot = false
 }: Request): Promise<Contact> => {
   const number = isGroup ? rawNumber : rawNumber.replace(/[^0-9]/g, "");
+  const safeProfilePicUrl = normalizeProfilePicUrl(profilePicUrl || null);
 
   const io = getIO();
   let contact: Contact | null;
@@ -43,7 +45,7 @@ const CreateOrUpdateContactService = async ({
   });
 
   if (contact) {
-    contact.update({ profilePicUrl });
+    contact.update({ profilePicUrl: safeProfilePicUrl });
     console.log(contact.whatsappId)
     if (isNil(contact.whatsappId === null)) {
       contact.update({
@@ -58,7 +60,7 @@ const CreateOrUpdateContactService = async ({
     contact = await Contact.create({
       name,
       number,
-      profilePicUrl,
+      profilePicUrl: safeProfilePicUrl,
       email,
       isGroup,
       extraInfo,

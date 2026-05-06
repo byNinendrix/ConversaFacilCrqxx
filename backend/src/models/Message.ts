@@ -14,6 +14,7 @@ import Contact from "./Contact";
 import Ticket from "./Ticket";
 import Company from "./Company";
 import Queue from "./Queue";
+import { normalizeContactProfilePic } from "../helpers/normalizeProfilePicUrl";
 
 @Table
 class Message extends Model<Message> {
@@ -115,7 +116,24 @@ class Message extends Model<Message> {
   @Default(false)
   @Column
   isForwarded: boolean;
-  
+
+  toJSON() {
+    const values: any = Object.assign({}, this.get());
+
+    if (values.contact) {
+      normalizeContactProfilePic(values.contact);
+    }
+
+    if (values.ticket?.contact) {
+      normalizeContactProfilePic(values.ticket.contact);
+    }
+
+    if (values.quotedMsg?.contact) {
+      normalizeContactProfilePic(values.quotedMsg.contact);
+    }
+
+    return values;
+  }
 }
 
 export default Message;

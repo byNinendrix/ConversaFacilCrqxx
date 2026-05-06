@@ -27,6 +27,7 @@ import Tag from "./Tag";
 import TicketTag from "./TicketTag";
 import QueueIntegrations from "./QueueIntegrations";
 import Prompt from "./Prompt";
+import { normalizeContactProfilePic } from "../helpers/normalizeProfilePicUrl";
 
 @Table
 class Ticket extends Model<Ticket> {
@@ -149,6 +150,24 @@ class Ticket extends Model<Ticket> {
   @Default(0)
   @Column
   amountUsedBotQueues: number;
+
+  toJSON() {
+    const values: any = Object.assign({}, this.get());
+
+    if (values.contact) {
+      normalizeContactProfilePic(values.contact);
+    }
+
+    if (Array.isArray(values.messages)) {
+      values.messages.forEach((message: any) => {
+        if (message?.contact) {
+          normalizeContactProfilePic(message.contact);
+        }
+      });
+    }
+
+    return values;
+  }
 }
 
 export default Ticket;
