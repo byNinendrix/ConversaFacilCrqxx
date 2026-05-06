@@ -90,7 +90,7 @@ class Contact extends Model<Contact> {
   whatsapp: Whatsapp;
 
   toJSON() {
-    const values = Object.assign({}, this.get());
+    const values: any = Object.assign({}, this.get());
     if (values.profilePicUrl && typeof values.profilePicUrl === "string") {
       const currentFrontendUrl = String(
         process.env.FRONTEND_URL || "http://localhost:3010"
