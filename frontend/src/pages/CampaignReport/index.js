@@ -10,7 +10,6 @@ import Title from "../../components/Title";
 
 import { Grid, LinearProgress, Typography } from "@material-ui/core";
 import api from "../../services/api";
-import { has, get, isNull } from "lodash";
 import CardCounter from "../../components/Dashboard/CardCounter";
 import GroupIcon from "@material-ui/icons/Group";
 import ScheduleIcon from "@material-ui/icons/Schedule";
@@ -52,6 +51,7 @@ const CampaignReport = () => {
   const [percent, setPercent] = useState(0);
   const [loading, setLoading] = useState(false);
   const mounted = useRef(true);
+  const refreshTimeout = useRef(null);
 
   const { datetimeToClient } = useDate();
 
@@ -64,37 +64,24 @@ const CampaignReport = () => {
 
     return () => {
       mounted.current = false;
+      if (refreshTimeout.current) {
+        clearTimeout(refreshTimeout.current);
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (mounted.current && has(campaign, "shipping")) {
-      if (has(campaign, "contactList")) {
-        const contactList = get(campaign, "contactList");
-        const valids = contactList.contacts.filter((c) => c.isWhatsappValid);
-        setValidContacts(valids.length);
-      }
-
-      if (has(campaign, "shipping")) {
-        const contacts = get(campaign, "shipping");
-        const delivered = contacts.filter((c) => !isNull(c.deliveredAt));
-        const confirmationRequested = contacts.filter(
-          (c) => !isNull(c.confirmationRequestedAt)
-        );
-        const confirmed = contacts.filter(
-          (c) => !isNull(c.deliveredAt) && !isNull(c.confirmationRequestedAt)
-        );
-        setDelivered(delivered.length);
-        setConfirmationRequested(confirmationRequested.length);
-        setConfirmed(confirmed.length);
-        setDelivered(delivered.length);
-      }
+    if (mounted.current && campaign.stats) {
+      setValidContacts(campaign.stats.validContacts || 0);
+      setDelivered(campaign.stats.delivered || 0);
+      setConfirmationRequested(campaign.stats.confirmationRequested || 0);
+      setConfirmed(campaign.stats.confirmed || 0);
     }
   }, [campaign]);
 
   useEffect(() => {
-    setPercent((delivered / validContacts) * 100);
+    setPercent(validContacts > 0 ? Math.min((delivered / validContacts) * 100, 100) : 0);
   }, [delivered, validContacts]);
 
   useEffect(() => {
@@ -103,8 +90,15 @@ const CampaignReport = () => {
 
     socket.on(`company-${companyId}-campaign`, (data) => {
      
-      if (data.record.id === +campaignId) {
-        setCampaign(data.record);
+      if (data.record && data.record.id === +campaignId) {
+        setCampaign((prevState) => ({ ...prevState, ...data.record }));
+
+        if (!refreshTimeout.current) {
+          refreshTimeout.current = setTimeout(() => {
+            refreshTimeout.current = null;
+            findCampaign();
+          }, 3000);
+        }
 
         if (data.record.status === "FINALIZADA") {
           setTimeout(() => {
@@ -206,7 +200,7 @@ const CampaignReport = () => {
               <CardCounter
                 icon={<WhatsAppIcon fontSize="inherit" />}
                 title="Conexão"
-                value={campaign.whatsapp.name}
+                value={campaign.whatsapp?.name || ""}
                 loading={loading}
               />
             </Grid>
@@ -216,7 +210,7 @@ const CampaignReport = () => {
               <CardCounter
                 icon={<ListAltIcon fontSize="inherit" />}
                 title="Lista de Contatos"
-                value={campaign.contactList.name}
+                value={campaign.contactList?.name || ""}
                 loading={loading}
               />
             </Grid>

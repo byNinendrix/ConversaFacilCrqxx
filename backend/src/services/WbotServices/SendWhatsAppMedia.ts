@@ -22,19 +22,39 @@ interface Request {
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 const publicFolder = path.resolve(__dirname, "..", "..", "..", "public");
+const reusableAudioCache = new Map<string, Promise<string>>();
 
-const processAudio = async (audio: string): Promise<string> => {
+const processAudio = async (
+  audio: string,
+  removeOriginal = true
+): Promise<string> => {
   const outputAudio = `${publicFolder}/${new Date().getTime()}.mp3`;
   return new Promise((resolve, reject) => {
     exec(
       `${ffmpegPath} -i ${audio} -vn -ab 128k -ar 44100 -f ipod ${outputAudio} -y`,
       (error, _stdout, _stderr) => {
-        if (error) reject(error);
-        fs.unlinkSync(audio);
+        if (error) {
+          reject(error);
+          return;
+        }
+        if (removeOriginal) {
+          fs.unlinkSync(audio);
+        }
         resolve(outputAudio);
       }
     );
   });
+};
+
+const processReusableAudio = async (audio: string): Promise<string> => {
+  const stat = fs.statSync(audio);
+  const cacheKey = `${audio}:${stat.size}:${stat.mtimeMs}`;
+
+  if (!reusableAudioCache.has(cacheKey)) {
+    reusableAudioCache.set(cacheKey, processAudio(audio, false));
+  }
+
+  return reusableAudioCache.get(cacheKey);
 };
 
 const processAudioFile = async (audio: string): Promise<string> => {
@@ -58,54 +78,46 @@ export const getMessageOptions = async (
   body: string = " "
 ): Promise<any> => {
   const mimeType = mime.lookup(pathMedia);
-  const typeMessage = mimeType.split("/")[0];
 
   try {
     if (!mimeType) {
       throw new Error("Invalid mimetype");
     }
+    const typeMessage = mimeType.split("/")[0];
     let options: AnyMessageContent;
+    const media = { url: pathMedia };
 
     if (typeMessage === "video") {
       options = {
-        video: fs.readFileSync(pathMedia),
+        video: media,
         caption: body ? body : null,
         fileName: fileName
         // gifPlayback: true
       };
     } else if (typeMessage === "audio") {
-      const typeAudio = true; //fileName.includes("audio-record-site");
-      const convert = await processAudio(pathMedia);
-      if (typeAudio) {
-        options = {
-          audio: fs.readFileSync(convert),
-          mimetype: "audio/mp4",
-          ptt: true
-        };
-      } else {
-        options = {
-          audio: fs.readFileSync(convert),
-          mimetype: typeAudio ? "audio/mp4" : mimeType,
-          ptt: true
-        };
-      }
+      const convert = await processReusableAudio(pathMedia);
+      options = {
+        audio: { url: convert },
+        mimetype: "audio/mp4",
+        ptt: true
+      };
     } else if (typeMessage === "document") {
       options = {
-        document: fs.readFileSync(pathMedia),
+        document: media,
         caption: body ? body : null,
         fileName: fileName,
         mimetype: mimeType
       };
     } else if (typeMessage === "application") {
       options = {
-        document: fs.readFileSync(pathMedia),
+        document: media,
         caption: body ? body : null,
         fileName: fileName,
         mimetype: mimeType
       };
     } else {
       options = {
-        image: fs.readFileSync(pathMedia),
+        image: media,
         caption: body ? body : null,
       };
     }
@@ -135,7 +147,7 @@ const SendWhatsAppMedia = async ({
 
     if (typeMessage === "video") {
       options = {
-        video: fs.readFileSync(pathMedia),
+        video: { url: pathMedia },
         caption: bodyMessage,
         fileName: media.originalname,
         contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded }
@@ -146,7 +158,7 @@ const SendWhatsAppMedia = async ({
       if (typeAudio) {
         const convert = await processAudio(media.path);
         options = {
-          audio: fs.readFileSync(convert),
+          audio: { url: convert },
           mimetype: "audio/mpeg",
           ptt: true,
           contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded }
@@ -154,7 +166,7 @@ const SendWhatsAppMedia = async ({
       } else {
         const convert = await processAudio(media.path);
         options = {
-          audio: fs.readFileSync(convert),
+          audio: { url: convert },
           mimetype: "audio/mpeg",
           ptt: true,
           contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded }
@@ -162,7 +174,7 @@ const SendWhatsAppMedia = async ({
       }
     } else if (typeMessage === "document" || typeMessage === "text") {
       options = {
-        document: fs.readFileSync(pathMedia),
+        document: { url: pathMedia },
         caption: bodyMessage,
         fileName: media.originalname,
         mimetype: media.mimetype,
@@ -170,7 +182,7 @@ const SendWhatsAppMedia = async ({
       };
     } else if (typeMessage === "application") {
       options = {
-        document: fs.readFileSync(pathMedia),
+        document: { url: pathMedia },
         caption: bodyMessage,
         fileName: media.originalname,
         mimetype: media.mimetype,
@@ -178,7 +190,7 @@ const SendWhatsAppMedia = async ({
       };
     } else {
       options = {
-        image: fs.readFileSync(pathMedia),
+        image: { url: pathMedia },
         caption: bodyMessage,
         contextInfo: { forwardingScore: isForwarded ? 2 : 0, isForwarded: isForwarded }
       };
@@ -202,5 +214,3 @@ const SendWhatsAppMedia = async ({
 };
 
 export default SendWhatsAppMedia;
-
-

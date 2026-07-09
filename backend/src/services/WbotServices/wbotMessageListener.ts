@@ -66,7 +66,12 @@ import Setting from "../../models/Setting";
 import TicketTraking from "../../models/TicketTraking";
 import User from "../../models/User";
 import UserRating from "../../models/UserRating";
-import { campaignQueue, parseToMilliseconds, randomValue } from "../../queues";
+import {
+  campaignQueue,
+  getCampaignDispatchJobId,
+  parseToMilliseconds,
+  randomValue
+} from "../../queues";
 import { logger } from "../../utils/logger";
 import VerifyCurrentSchedule from "../CompanyService/VerifyCurrentSchedule";
 import CreateOrUpdateContactService from "../ContactServices/CreateOrUpdateContactService";
@@ -2613,35 +2618,43 @@ const verifyRecentCampaign = async (
 ) => {
   if (!message.key.fromMe) {
     const number = extractNumberFromJid(message.key.remoteJid);
-    const campaigns = await Campaign.findAll({
-      where: { companyId, status: "EM_ANDAMENTO", confirmation: true }
-    });
-    if (campaigns) {
-      const ids = campaigns.map(c => c.id);
-      const campaignShipping = await CampaignShipping.findOne({
-        where: {
-          campaignId: { [Op.in]: ids },
-          number,
-          confirmation: null
+    const campaignShipping = await CampaignShipping.findOne({
+      where: {
+        number,
+        confirmation: null,
+        confirmationRequestedAt: { [Op.not]: null }
+      },
+      include: [
+        {
+          model: Campaign,
+          attributes: ["id", "companyId"],
+          where: { companyId, status: "EM_ANDAMENTO", confirmation: true }
         }
-      });
+      ],
+      order: [["confirmationRequestedAt", "DESC"]]
+    });
 
-      if (campaignShipping) {
-        await campaignShipping.update({
-          confirmedAt: moment(),
-          confirmation: true
-        });
-        await campaignQueue.add(
-          "DispatchCampaign",
-          {
-            campaignShippingId: campaignShipping.id,
-            campaignId: campaignShipping.campaignId
-          },
-          {
-            delay: parseToMilliseconds(randomValue(0, 10))
-          }
-        );
-      }
+    if (campaignShipping) {
+      await campaignShipping.update({
+        confirmedAt: moment(),
+        confirmation: true
+      });
+      await campaignQueue.add(
+        "DispatchCampaign",
+        {
+          campaignShippingId: campaignShipping.id,
+          campaignId: campaignShipping.campaignId
+        },
+        {
+          jobId: getCampaignDispatchJobId(
+            campaignShipping.campaignId,
+            campaignShipping.id
+          ),
+          delay: parseToMilliseconds(randomValue(0, 10)),
+          removeOnComplete: true,
+          removeOnFail: true
+        }
+      );
     }
   }
 };
