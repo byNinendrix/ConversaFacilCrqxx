@@ -661,20 +661,12 @@ async function getSettings(campaign) {
     attributes: ["key", "value"]
   });
 
-  let messageInterval: number = 20;
-  let longerIntervalAfter: number = 20;
-  let greaterInterval: number = 60;
+  let intervals: any[] = [{ finalQuantity: 10, min: 600, max: 1200 }];
   let variables: any[] = [];
 
   settings.forEach(setting => {
-    if (setting.key === "messageInterval") {
-      messageInterval = JSON.parse(setting.value);
-    }
-    if (setting.key === "longerIntervalAfter") {
-      longerIntervalAfter = JSON.parse(setting.value);
-    }
-    if (setting.key === "greaterInterval") {
-      greaterInterval = JSON.parse(setting.value);
+    if (setting.key === "intervals") {
+      intervals = JSON.parse(setting.value);
     }
     if (setting.key === "variables") {
       variables = JSON.parse(setting.value);
@@ -682,9 +674,7 @@ async function getSettings(campaign) {
   });
 
   return {
-    messageInterval,
-    longerIntervalAfter,
-    greaterInterval,
+    intervals,
     variables
   };
 }
@@ -991,20 +981,43 @@ async function verifyAndFinalizeCampaign(campaign) {
 
 function getIntervalForContact(
   index: number,
-  messageInterval: number,
-  longerIntervalAfter: number,
-  greaterInterval: number
+  intervals: Array<{ finalQuantity: number | null; min: number; max: number }>
 ) {
-  const shouldUseGreaterInterval =
-    longerIntervalAfter > 0 && index + 1 > longerIntervalAfter;
+  const messageNumber = index + 1;
+  const validIntervals = Array.isArray(intervals)
+    ? intervals
+        .map(interval => ({
+          finalQuantity:
+            interval.finalQuantity === null ||
+            typeof interval.finalQuantity === "undefined"
+              ? null
+              : Number(interval.finalQuantity),
+          min: Number(interval.min) || 0,
+          max: Number(interval.max) || 0
+        }))
+        .filter(interval => {
+          return (
+            interval.max >= interval.min &&
+            (interval.finalQuantity === null || interval.finalQuantity >= 1)
+          );
+        })
+        .sort((a, b) => {
+          if (a.finalQuantity === null) return 1;
+          if (b.finalQuantity === null) return -1;
+          return a.finalQuantity - b.finalQuantity;
+        })
+    : [];
 
-  const configuredInterval = shouldUseGreaterInterval
-    ? greaterInterval
-    : messageInterval;
+  if (!validIntervals.length) return 0;
 
-  if (configuredInterval <= 0) return 0;
+  const configuredInterval =
+    validIntervals.find(interval => {
+      return interval.finalQuantity === null || messageNumber <= interval.finalQuantity;
+    }) || validIntervals[validIntervals.length - 1];
 
-  return randomBetween(1, configuredInterval);
+  if (configuredInterval.max <= 0) return 0;
+
+  return randomBetween(configuredInterval.min, configuredInterval.max);
 }
 
 function getCampaignBaseDelay(scheduledAt?: Date | string | null) {
@@ -1033,9 +1046,7 @@ async function handleProcessCampaign(job) {
     await campaign.update({ status: "EM_ANDAMENTO" });
     const totalContacts = await getCampaignContactCount(campaign);
 
-    const longerIntervalAfter = Number(settings.longerIntervalAfter) || 0;
-    const greaterInterval = Number(settings.greaterInterval) || 0;
-    const messageInterval = Number(settings.messageInterval) || 0;
+    const intervals = settings.intervals;
 
     let baseDelay = getCampaignBaseDelay(campaign.scheduledAt);
     let processedContacts = 0;
@@ -1046,9 +1057,7 @@ async function handleProcessCampaign(job) {
       companyId: campaign.companyId,
       totalContacts,
       batchSize: campaignContactBatchSize,
-      messageInterval,
-      longerIntervalAfter,
-      greaterInterval
+      intervals
     });
 
     while (true) {
@@ -1068,9 +1077,7 @@ async function handleProcessCampaign(job) {
       for (const contact of contacts) {
         const intervalSeconds = getIntervalForContact(
           processedContacts,
-          messageInterval,
-          longerIntervalAfter,
-          greaterInterval
+          intervals
         );
         baseDelay = addSeconds(baseDelay, intervalSeconds);
 
