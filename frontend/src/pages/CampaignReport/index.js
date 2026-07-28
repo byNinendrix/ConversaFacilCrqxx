@@ -19,6 +19,9 @@ import DoneAllIcon from "@material-ui/icons/DoneAll";
 import CheckCircleIcon from "@material-ui/icons/CheckCircle";
 import WhatsAppIcon from "@material-ui/icons/WhatsApp";
 import ListAltIcon from "@material-ui/icons/ListAlt";
+import ErrorOutlineIcon from "@material-ui/icons/ErrorOutline";
+import HourglassEmptyIcon from "@material-ui/icons/HourglassEmpty";
+import SyncIcon from "@material-ui/icons/Sync";
 import { useDate } from "../../hooks/useDate";
 
 import { SocketContext } from "../../context/Socket/SocketContext";
@@ -46,10 +49,12 @@ const CampaignReport = () => {
   const [campaign, setCampaign] = useState({});
   const [validContacts, setValidContacts] = useState(0);
   const [delivered, setDelivered] = useState(0);
+  const [failed, setFailed] = useState(0);
   const [confirmationRequested, setConfirmationRequested] = useState(0);
   const [confirmed, setConfirmed] = useState(0);
   const [percent, setPercent] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [diagnostics, setDiagnostics] = useState(null);
   const mounted = useRef(true);
   const refreshTimeout = useRef(null);
 
@@ -75,14 +80,15 @@ const CampaignReport = () => {
     if (mounted.current && campaign.stats) {
       setValidContacts(campaign.stats.validContacts || 0);
       setDelivered(campaign.stats.delivered || 0);
+      setFailed(campaign.stats.failed || 0);
       setConfirmationRequested(campaign.stats.confirmationRequested || 0);
       setConfirmed(campaign.stats.confirmed || 0);
     }
   }, [campaign]);
 
   useEffect(() => {
-    setPercent(validContacts > 0 ? Math.min((delivered / validContacts) * 100, 100) : 0);
-  }, [delivered, validContacts]);
+    setPercent(validContacts > 0 ? Math.min(((delivered + failed) / validContacts) * 100, 100) : 0);
+  }, [delivered, failed, validContacts]);
 
   useEffect(() => {
     const companyId = localStorage.getItem("companyId");
@@ -116,9 +122,18 @@ const CampaignReport = () => {
 
   const findCampaign = async () => {
     setLoading(true);
-    const { data } = await api.get(`/campaigns/${campaignId}`);
-    setCampaign(data);
-    setLoading(false);
+    try {
+      const [{ data }, diagnosticsResponse] = await Promise.all([
+        api.get(`/campaigns/${campaignId}`),
+        api
+          .get(`/campaigns/${campaignId}/diagnostics`)
+          .catch(() => ({ data: null })),
+      ]);
+      setCampaign(data);
+      setDiagnostics(diagnosticsResponse.data);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatStatus = (val) => {
@@ -149,7 +164,7 @@ const CampaignReport = () => {
       </MainHeader>
       <Paper className={classes.mainPaper} variant="outlined">
         <Typography variant="h6" component="h2">
-          Status: {formatStatus(campaign.status)} {delivered} de {validContacts}
+          Status: {formatStatus(campaign.status)} {delivered} entregues, {failed} falhas de {validContacts}
         </Typography>
         <Grid spacing={2} container>
           <Grid xs={12} item>
@@ -195,6 +210,14 @@ const CampaignReport = () => {
               loading={loading}
             />
           </Grid>
+          <Grid xs={12} md={4} item>
+            <CardCounter
+              icon={<ErrorOutlineIcon fontSize="inherit" />}
+              title="Falhas"
+              value={failed}
+              loading={loading}
+            />
+          </Grid>
           {campaign.whatsappId && (
             <Grid xs={12} md={4} item>
               <CardCounter
@@ -231,6 +254,95 @@ const CampaignReport = () => {
               loading={loading}
             />
           </Grid>
+          {diagnostics && (
+            <>
+              <Grid xs={12} item>
+                <Typography variant="h6" component="h3">
+                  Diagnostico da fila
+                </Typography>
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<HourglassEmptyIcon fontSize="inherit" />}
+                  title="Envios Pendentes"
+                  value={diagnostics.stats?.pending || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<ErrorOutlineIcon fontSize="inherit" />}
+                  title="Falhas Definitivas"
+                  value={diagnostics.stats?.failed || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<ListAltIcon fontSize="inherit" />}
+                  title="Registros de Envio"
+                  value={diagnostics.stats?.shippingTotal || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<ErrorOutlineIcon fontSize="inherit" />}
+                  title="Jobs com Falha"
+                  value={diagnostics.queue?.counts?.failed || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<ScheduleIcon fontSize="inherit" />}
+                  title="Jobs Aguardando"
+                  value={diagnostics.queue?.counts?.delayed || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<SyncIcon fontSize="inherit" />}
+                  title="Jobs Ativos"
+                  value={diagnostics.queue?.counts?.active || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<SyncIcon fontSize="inherit" />}
+                  title="Jobs da Campanha"
+                  value={diagnostics.queue?.campaignSample?.matched || 0}
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<SyncIcon fontSize="inherit" />}
+                  title="Job Principal"
+                  value={
+                    diagnostics.queue?.processJob?.found
+                      ? diagnostics.queue.processJob.state
+                      : "Nao encontrado"
+                  }
+                  loading={loading}
+                />
+              </Grid>
+              <Grid xs={12} md={4} item>
+                <CardCounter
+                  icon={<SyncIcon fontSize="inherit" />}
+                  title="Job de Finalizacao"
+                  value={
+                    diagnostics.queue?.finalizeJob?.found
+                      ? diagnostics.queue.finalizeJob.state
+                      : "Nao encontrado"
+                  }
+                  loading={loading}
+                />
+              </Grid>
+            </>
+          )}
         </Grid>
       </Paper>
     </MainContainer>

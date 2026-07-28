@@ -41,9 +41,13 @@ module.exports = {
     await addIndexIfMissing(queryInterface, "CampaignShipping", ["campaignId", "number", "confirmation"], "idx_cpsh_campaign_number_confirmation");
     await addIndexIfMissing(queryInterface, "CampaignShipping", ["number", "confirmation", "campaignId", "confirmationRequestedAt"], "idx_cpsh_number_confirmation_campaign_requested");
     await addIndexIfMissing(queryInterface, "CampaignShipping", ["campaignId", "deliveredAt", "jobId"], "idx_cpsh_campaign_delivered_job");
+    await addIndexIfMissing(queryInterface, "TicketTags", ["tagId", "ticketId"], "idx_ticket_tags_tag_ticket");
+    await addIndexIfMissing(queryInterface, "Tickets", ["companyId", "contactId"], "idx_tickets_company_contact");
   },
 
   down: async (queryInterface: QueryInterface) => {
+    await removeIndexIfExists(queryInterface, "Tickets", "idx_tickets_company_contact");
+    await removeIndexIfExists(queryInterface, "TicketTags", "idx_ticket_tags_tag_ticket");
     await removeIndexIfExists(queryInterface, "CampaignShipping", "idx_cpsh_campaign_delivered_job");
     await removeIndexIfExists(queryInterface, "CampaignShipping", "idx_cpsh_number_confirmation_campaign_requested");
     await removeIndexIfExists(queryInterface, "CampaignShipping", "idx_cpsh_campaign_number_confirmation");

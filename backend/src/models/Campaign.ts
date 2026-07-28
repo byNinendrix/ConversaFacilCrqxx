@@ -74,6 +74,24 @@ class Campaign extends Model<Campaign> {
   @Column
   completedAt: Date;
 
+  @Column({ defaultValue: 0 })
+  validContactsCount: number;
+
+  @Column({ defaultValue: 0 })
+  deliveredCount: number;
+
+  @Column({ defaultValue: 0 })
+  confirmationRequestedCount: number;
+
+  @Column({ defaultValue: 0 })
+  confirmedCount: number;
+
+  @Column({ defaultValue: 0 })
+  failedCount: number;
+
+  @Column
+  lastStatsAt: Date;
+
   @CreatedAt
   createdAt: Date;
 

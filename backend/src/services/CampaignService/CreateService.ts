@@ -3,6 +3,7 @@ import AppError from "../../errors/AppError";
 import Campaign from "../../models/Campaign";
 import ContactList from "../../models/ContactList";
 import Whatsapp from "../../models/Whatsapp";
+import ValidateCampaignService from "./ValidateCampaignService";
 
 interface Data {
   name: string;
@@ -11,6 +12,7 @@ interface Data {
   scheduledAt: string;
   companyId: number;
   contactListId: number;
+  whatsappId: number;
   message1?: string;
   message2?: string;
   message3?: string;
@@ -42,6 +44,12 @@ const CreateService = async (data: Data): Promise<Campaign> => {
   if (data.scheduledAt != null && data.scheduledAt != "") {
     data.status = "PROGRAMADA";
   }
+
+  await ValidateCampaignService({
+    companyId: data.companyId,
+    contactListId: data.contactListId,
+    whatsappId: data.whatsappId
+  });
 
   const record = await Campaign.create(data);
 

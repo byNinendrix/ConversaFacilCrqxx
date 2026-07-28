@@ -51,6 +51,15 @@ class CampaignShipping extends Model<CampaignShipping> {
   @Column
   deliveredAt: Date;
 
+  @Column
+  failedAt: Date;
+
+  @Column
+  failReason: string;
+
+  @Column({ defaultValue: 0 })
+  attempts: number;
+
   @CreatedAt
   createdAt: Date;
 

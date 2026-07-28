@@ -68,7 +68,7 @@ import User from "../../models/User";
 import UserRating from "../../models/UserRating";
 import {
   campaignQueue,
-  getCampaignDispatchJobId,
+  getCampaignDispatchJobOptions,
   parseToMilliseconds,
   randomValue
 } from "../../queues";
@@ -2645,15 +2645,11 @@ const verifyRecentCampaign = async (
           campaignShippingId: campaignShipping.id,
           campaignId: campaignShipping.campaignId
         },
-        {
-          jobId: getCampaignDispatchJobId(
-            campaignShipping.campaignId,
-            campaignShipping.id
-          ),
-          delay: parseToMilliseconds(randomValue(0, 10)),
-          removeOnComplete: true,
-          removeOnFail: true
-        }
+        getCampaignDispatchJobOptions(
+          campaignShipping.campaignId,
+          campaignShipping.id,
+          parseToMilliseconds(randomValue(0, 10))
+        )
       );
     }
   }

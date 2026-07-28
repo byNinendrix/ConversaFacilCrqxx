@@ -13,6 +13,8 @@ routes.get("/campaigns/list", isAuth, CampaignController.findList);
 
 routes.get("/campaigns", isAuth, CampaignController.index);
 
+routes.get("/campaigns/:id/diagnostics", isAuth, CampaignController.diagnostics);
+
 routes.get("/campaigns/:id", isAuth, CampaignController.show);
 
 routes.post("/campaigns", isAuth, CampaignController.store);

@@ -77,7 +77,20 @@ const CampaignSchema = Yup.object().shape({
     .min(2, "Too Short!")
     .max(50, "Too Long!")
     .required("Required"),
+  whatsappId: Yup.mixed().required("Required"),
+  scheduledAt: Yup.mixed().required("Required"),
 });
+
+const hasValue = (value) =>
+  value !== null &&
+  value !== undefined &&
+  value !== "" &&
+  value !== "Nenhuma";
+
+const hasCampaignMessage = (values) =>
+  ["message1", "message2", "message3", "message4", "message5"].some((key) =>
+    hasValue(values[key])
+  );
 
 const CampaignModal = ({
   open,
@@ -91,7 +104,7 @@ const CampaignModal = ({
   const isMounted = useRef(true);
   const { user } = useContext(AuthContext);
   const { companyId } = user;
-  const [file, setFile] = useState(null);
+  const [file, setFile] = useState([]);
 
   const initialState = {
     name: "",
@@ -110,7 +123,7 @@ const CampaignModal = ({
     scheduledAt: "",
     whatsappId: "",
     contactListId: "",
-    tagListId: "Nenhuma",
+    tagListId: "",
     companyId,
   };
 
@@ -142,7 +155,7 @@ const CampaignModal = ({
         toastError(err);
       }
     })();
-  }, []);
+  }, [companyId]);
 
   useEffect(() => {
     if (isMounted.current) {
@@ -163,16 +176,13 @@ const CampaignModal = ({
       api.get(`/tags`, { params: { companyId } })
         .then(({ data }) => {
           const fetchedTags = data.tags;
-          // Perform any necessary data transformation here
           const formattedTagLists = fetchedTags.map((tag) => ({
             id: tag.id,
             name: tag.name,
           }));
           setTagLists(formattedTagLists);
         })
-        .catch((error) => {
-          console.error("Error retrieving tags:", error);
-        });
+        .catch((err) => toastError(err));
         
       if (!campaignId) return;
 
@@ -220,6 +230,34 @@ const CampaignModal = ({
 
   const handleSaveCampaign = async (values) => {
     try {
+      const hasContactSource =
+        hasValue(values.contactListId) || hasValue(values.tagListId);
+      const hasContent =
+        hasCampaignMessage(values) ||
+        hasValue(values.fileListId) ||
+        Boolean(attachment) ||
+        Boolean(campaign.mediaPath);
+
+      if (!hasContactSource) {
+        toast.error("Selecione uma lista de contatos ou uma tag.");
+        return;
+      }
+
+      if (!hasValue(values.whatsappId)) {
+        toast.error("Selecione um WhatsApp para a campanha.");
+        return;
+      }
+
+      if (!hasValue(values.scheduledAt)) {
+        toast.error("Informe a data e hora do agendamento.");
+        return;
+      }
+
+      if (!hasContent) {
+        toast.error("Informe pelo menos uma mensagem, anexo ou lista de arquivos.");
+        return;
+      }
+
       const dataValues = {};
       Object.entries(values).forEach(([key, value]) => {
         if (key === "scheduledAt" && value !== "" && value !== null) {
@@ -253,7 +291,6 @@ const CampaignModal = ({
       }
       toast.success(i18n.t("campaigns.toasts.success"));
     } catch (err) {
-      console.log(err);
       toastError(err);
     }
   };
@@ -367,11 +404,12 @@ const CampaignModal = ({
           initialValues={campaign}
           enableReinitialize={true}
           validationSchema={CampaignSchema}
-          onSubmit={(values, actions) => {
-            setTimeout(() => {
-              handleSaveCampaign(values);
+          onSubmit={async (values, actions) => {
+            try {
+              await handleSaveCampaign(values);
+            } finally {
               actions.setSubmitting(false);
-            }, 400);
+            }
           }}
         >
           {({ values, errors, touched, isSubmitting }) => (

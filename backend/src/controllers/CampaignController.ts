@@ -11,15 +11,14 @@ import FindService from "../services/CampaignService/FindService";
 import ListService from "../services/CampaignService/ListService";
 import ShowService from "../services/CampaignService/ShowService";
 import UpdateService from "../services/CampaignService/UpdateService";
+import DiagnosticsService from "../services/CampaignService/DiagnosticsService";
 
 import Campaign from "../models/Campaign";
 
 import AppError from "../errors/AppError";
-import Contact from "../models/Contact";
 import ContactList from "../models/ContactList";
 import ContactListItem from "../models/ContactListItem";
-import Ticket from "../models/Ticket";
-import TicketTag from "../models/TicketTag";
+import sequelize from "../database";
 import { CancelService } from "../services/CampaignService/CancelService";
 import { RestartService } from "../services/CampaignService/RestartService";
 
@@ -36,12 +35,69 @@ type StoreData = {
   scheduledAt: string;
   companyId: number;
   contactListId: number;
+  whatsappId: number;
   tagListId: number | string;
   fileListId: number;
 };
 
 type FindParams = {
   companyId: string;
+};
+
+const createContactListFromTag = async ({
+  tagId,
+  campaignName,
+  companyId
+}: {
+  tagId: number;
+  campaignName: string;
+  companyId: number;
+}): Promise<number> => {
+  const formattedDate = new Date().toISOString();
+  const name = `${campaignName} | TAG: ${tagId} - ${formattedDate}`;
+  const contactList = await ContactList.create({ name, companyId });
+
+  await sequelize.query(
+    `
+      INSERT INTO "ContactListItems"
+        (name, number, email, "isWhatsappValid", "contactListId", "companyId", "createdAt", "updatedAt")
+      SELECT DISTINCT ON (c.id)
+        c.name,
+        c.number,
+        COALESCE(c.email, ''),
+        true,
+        :contactListId,
+        :companyId,
+        NOW(),
+        NOW()
+      FROM "Contacts" c
+      INNER JOIN "Tickets" t ON t."contactId" = c.id
+      INNER JOIN "TicketTags" tt ON tt."ticketId" = t.id
+      WHERE tt."tagId" = :tagId
+        AND t."companyId" = :companyId
+        AND c."companyId" = :companyId
+        AND c.number IS NOT NULL
+      ORDER BY c.id
+    `,
+    {
+      replacements: {
+        tagId,
+        companyId,
+        contactListId: contactList.id
+      }
+    }
+  );
+
+  const contactsCount = await ContactListItem.count({
+    where: { contactListId: contactList.id, companyId, isWhatsappValid: true }
+  });
+
+  if (contactsCount === 0) {
+    await contactList.destroy();
+    throw new AppError("ERR_CAMPAIGN_TAG_WITHOUT_CONTACTS", 400);
+  }
+
+  return contactList.id;
 };
 
 export const index = async (req: Request, res: Response): Promise<Response> => {
@@ -60,7 +116,6 @@ export const index = async (req: Request, res: Response): Promise<Response> => {
 export const store = async (req: Request, res: Response): Promise<Response> => {
   const { companyId } = req.user;
   const data = req.body as StoreData;
-  console.log('data------- store:', data);
 
   const schema = Yup.object().shape({
     name: Yup.string().required()
@@ -73,68 +128,25 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   }
 
   if (typeof data.tagListId === 'number') {
+    const contactListId = await createContactListFromTag({
+      tagId: data.tagListId,
+      campaignName: data.name,
+      companyId
+    });
 
-    const tagId = data.tagListId;
-    const campanhaNome = data.name;
+    const record = await CreateService({
+      ...data,
+      companyId,
+      contactListId
+    });
 
-    async function createContactListFromTag(tagId) {
+    const io = getIO();
+    io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-campaign`, {
+      action: "create",
+      record
+    });
 
-      const currentDate = new Date();
-      const formattedDate = currentDate.toISOString();
-
-      try {
-        const ticketTags = await TicketTag.findAll({ where: { tagId } });
-        const ticketIds = ticketTags.map((ticketTag) => ticketTag.ticketId);
-
-        const tickets = await Ticket.findAll({ where: { id: ticketIds } });
-        const contactIds = tickets.map((ticket) => ticket.contactId);
-
-        const contacts = await Contact.findAll({ where: { id: contactIds } });
-
-        const randomName = `${campanhaNome} | TAG: ${tagId} - ${formattedDate}` // Implement your own function to generate a random name
-        const contactList = await ContactList.create({ name: randomName, companyId: companyId });
-
-        const { id: contactListId } = contactList;
-
-        const contactListItems = contacts.map((contact) => ({
-          name: contact.name,
-          number: contact.number,
-          email: contact.email,
-          contactListId,
-          companyId,
-          isWhatsappValid: true,
-
-        }));
-
-        await ContactListItem.bulkCreate(contactListItems);
-
-        // Return the ContactList ID
-        return contactListId;
-      } catch (error) {
-        console.error('Error creating contact list:', error);
-        throw error;
-      }
-    }
-
-
-    createContactListFromTag(tagId)
-      .then(async (contactListId) => {
-        const record = await CreateService({
-          ...data,
-          companyId,
-          contactListId: contactListId,
-        });
-        const io = getIO();
-        io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-campaign`, {
-          action: "create",
-          record
-        });
-        return res.status(200).json(record);
-      })
-      .catch((error) => {
-        console.error('Error:', error);
-        return res.status(500).json({ error: 'Error creating contact list' });
-      });
+    return res.status(200).json(record);
 
   } else { // SAI DO CHECK DE TAG
 
@@ -156,8 +168,21 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
 
 export const show = async (req: Request, res: Response): Promise<Response> => {
   const { id } = req.params;
+  const { companyId } = req.user;
 
-  const record = await ShowService(id);
+  const record = await ShowService(id, companyId);
+
+  return res.status(200).json(record);
+};
+
+export const diagnostics = async (
+  req: Request,
+  res: Response
+): Promise<Response> => {
+  const { id } = req.params;
+  const { companyId } = req.user;
+
+  const record = await DiagnosticsService({ id, companyId });
 
   return res.status(200).json(record);
 };
@@ -183,6 +208,7 @@ export const update = async (
 
   const record = await UpdateService({
     ...data,
+    companyId,
     id
   });
 
@@ -200,8 +226,9 @@ export const cancel = async (
   res: Response
 ): Promise<Response> => {
   const { id } = req.params;
+  const { companyId } = req.user;
 
-  await CancelService(+id);
+  await CancelService(+id, companyId);
 
   return res.status(204).json({ message: "Cancelamento realizado" });
 };
@@ -211,8 +238,9 @@ export const restart = async (
   res: Response
 ): Promise<Response> => {
   const { id } = req.params;
+  const { companyId } = req.user;
 
-  await RestartService(+id);
+  await RestartService(+id, companyId);
 
   return res.status(204).json({ message: "Reinício dos disparos" });
 };
@@ -224,7 +252,7 @@ export const remove = async (
   const { id } = req.params;
   const { companyId } = req.user;
 
-  await DeleteService(id);
+  await DeleteService(id, companyId);
 
   const io = getIO();
   io.to(`company-${companyId}-mainchannel`).emit(`company-${companyId}-campaign`, {
@@ -250,11 +278,19 @@ export const mediaUpload = async (
   res: Response
 ): Promise<Response> => {
   const { id } = req.params;
+  const { companyId } = req.user;
   const files = req.files as Express.Multer.File[];
   const file = head(files);
 
   try {
-    const campaign = await Campaign.findByPk(id);
+    if (!file) {
+      throw new AppError("ERR_CAMPAIGN_MEDIA_REQUIRED", 400);
+    }
+
+    const campaign = await Campaign.findOne({ where: { id, companyId } });
+    if (!campaign) {
+      throw new AppError("ERR_NO_CAMPAIGN_FOUND", 404);
+    }
     campaign.mediaPath = file.filename;
     campaign.mediaName = file.originalname;
     await campaign.save();
@@ -269,9 +305,13 @@ export const deleteMedia = async (
   res: Response
 ): Promise<Response> => {
   const { id } = req.params;
+  const { companyId } = req.user;
 
   try {
-    const campaign = await Campaign.findByPk(id);
+    const campaign = await Campaign.findOne({ where: { id, companyId } });
+    if (!campaign) {
+      throw new AppError("ERR_NO_CAMPAIGN_FOUND", 404);
+    }
     const filePath = path.resolve("public", campaign.mediaPath);
     const fileExists = fs.existsSync(filePath);
     if (fileExists) {
