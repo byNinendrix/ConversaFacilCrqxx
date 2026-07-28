@@ -11,7 +11,8 @@ import {
   Default,
   HasMany,
   ForeignKey,
-  BelongsTo
+  BelongsTo,
+  DataType
 } from "sequelize-typescript";
 import ContactCustomField from "./ContactCustomField";
 import Ticket from "./Ticket";
@@ -41,7 +42,7 @@ class Contact extends Model<Contact> {
   email: string;
 
   @Default("")
-  @Column
+  @Column(DataType.TEXT)
   profilePicUrl: string;
 
   @Default(false)
