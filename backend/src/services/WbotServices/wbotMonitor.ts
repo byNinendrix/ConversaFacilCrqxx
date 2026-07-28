@@ -35,7 +35,9 @@ const wbotMonitor = async (
 ): Promise<void> => {
   try {
     wbot.ws.on("CB:call", async (node: BinaryNode) => {
-      const content = node.content[0] as any;
+      const content = Array.isArray(node.content) ? (node.content[0] as any) : null;
+
+      if (!content) return;
 
       if (content.tag === "offer") {
         const { from, id } = node.attrs;
@@ -47,7 +49,7 @@ const wbotMonitor = async (
           where: { key: "call", companyId },
         });
 
-        if (sendMsgCall.value === "disabled") {
+        if (sendMsgCall?.value === "disabled") {
           await wbot.sendMessage(node.attrs.from, {
             text:
               "*Mensagem Automática:*\n\nAs chamadas de voz e vídeo estão desabilitas para esse WhatsApp, favor enviar uma mensagem de texto. Obrigado",
@@ -59,10 +61,17 @@ const wbotMonitor = async (
             where: { companyId, number },
           });
 
+          if (!contact) {
+            logger.warn(
+              `Evento de chamada ignorado: contato nao encontrado. Empresa=${companyId}, numero=${number}`
+            );
+            return;
+          }
+
           const ticket = await Ticket.findOne({
             where: {
               contactId: contact.id,
-              whatsappId: wbot.id,
+              whatsappId: wbot.id || whatsapp.id,
               //status: { [Op.or]: ["close"] },
               companyId
             },
