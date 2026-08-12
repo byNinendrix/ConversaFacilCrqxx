@@ -23,6 +23,10 @@ import ShowContactService from "../services/ContactServices/ShowContactService";
 import SendWhatsAppMedia from "../services/WbotServices/SendWhatsAppMedia";
 import path from "path";
 import SendWhatsAppMessage from "../services/WbotServices/SendWhatsAppMessage";
+import {
+  verifyMediaMessage,
+  verifyMessage
+} from "../services/WbotServices/wbotMessageListener";
 import EditWhatsAppMessage from "../services/WbotServices/EditWhatsAppMessage";
 import ShowMessageService, {
   GetWhatsAppFromMessage
@@ -83,15 +87,17 @@ export const store = async (req: Request, res: Response): Promise<Response> => {
   if (medias) {
     await Promise.all(
       medias.map(async (media: Express.Multer.File, index) => {
-        await SendWhatsAppMedia({
+        const sentMessage = await SendWhatsAppMedia({
           media,
           ticket,
           body: Array.isArray(body) ? body[index] : body
         });
+        await verifyMediaMessage(sentMessage, ticket, ticket.contact);
       })
     );
   } else {
-    await SendWhatsAppMessage({ body, ticket, quotedMsg });
+    const sentMessage = await SendWhatsAppMessage({ body, ticket, quotedMsg });
+    await verifyMessage(sentMessage, ticket, ticket.contact);
   }
 
   return res.send();
