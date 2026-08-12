@@ -546,6 +546,69 @@ const getSenderMessage = (msg: any, wbot: Session): string => {
   return senderId ? jidNormalizedUser(senderId) : me.id;
 };
 
+const findKnownContactByLid = async (
+  remoteJid: string,
+  companyId: number,
+  whatsappId: number
+): Promise<Contact | null> => {
+  const lidNumber = remoteJid.replace(/\D/g, "");
+  const previousMessages = await Message.findAll({
+    where: {
+      companyId,
+      remoteJid,
+      contactId: {
+        [Op.ne]: null
+      }
+    },
+    attributes: ["contactId"],
+    include: [
+      {
+        model: Ticket,
+        as: "ticket",
+        where: { whatsappId },
+        required: true,
+        attributes: []
+      }
+    ],
+    order: [["createdAt", "DESC"]],
+    limit: 20
+  });
+
+  const checkedContactIds = new Set<number>();
+
+  for (const previousMessage of previousMessages) {
+    if (
+      !previousMessage?.contactId ||
+      checkedContactIds.has(previousMessage.contactId)
+    ) {
+      continue;
+    }
+
+    checkedContactIds.add(previousMessage.contactId);
+
+    const contact = await Contact.findOne({
+      where: {
+        id: previousMessage.contactId,
+        companyId
+      }
+    });
+
+    if (!contact) {
+      continue;
+    }
+
+    const contactNumber = String(contact.number || "").replace(/\D/g, "");
+
+    if (contactNumber === lidNumber) {
+      continue;
+    }
+
+    return contact;
+  }
+
+  return null;
+};
+
 const getContactMessage = async (msg: any, wbot: Session) => {
   const jid = getMainJid(msg);          // 👉 aqui já vem normalizado com Alt
   const isGroup = jid.endsWith("g.us");
@@ -2087,7 +2150,57 @@ const handleMessage = async (
       msg.message?.["documentMessage"] ||
       msg.message?.["documentWithCaptionMessage"] ||
       msg.message["stickerMessage"];
+
+    if (msg.key.fromMe && msg.key.id) {
+      const messageExists = await Message.count({
+        where: { id: msg.key.id, companyId },
+        include: [
+          {
+            model: Ticket,
+            as: "ticket",
+            where: { whatsappId: wbot.id },
+            required: true
+          }
+        ]
+      });
+
+      if (messageExists) {
+        return;
+      }
+    }
+
     if (msg.key.fromMe) {
+      const key: any = msg.key || {};
+      const remoteJid = String(key.remoteJid || "");
+      const hasRemoteJidAlt = Boolean(key.remoteJidAlt);
+
+      if (remoteJid.endsWith("@lid") && !hasRemoteJidAlt) {
+        const knownContact = await findKnownContactByLid(
+          remoteJid,
+          companyId,
+          wbot.id!
+        );
+
+        if (!knownContact) {
+          logger.warn(
+            "Ignoring outbound LID echo without known contact association",
+            {
+              companyId,
+              whatsappId: wbot.id,
+              messageId: msg.key.id
+            }
+          );
+          return;
+        }
+
+        msgContact = {
+          id: `${knownContact.number}@${
+            knownContact.isGroup ? "g.us" : "s.whatsapp.net"
+          }`,
+          name: knownContact.name
+        };
+      }
+
       if (bodyMessage && /\u200e/.test(bodyMessage)) return;
 
       if (
@@ -2098,7 +2211,9 @@ const handleMessage = async (
         msgType !== "vcard"
       )
         return;
-      msgContact = await getContactMessage(msg, wbot);
+      if (!msgContact) {
+        msgContact = await getContactMessage(msg, wbot);
+      }
     } else {
       msgContact = await getContactMessage(msg, wbot);
     }
