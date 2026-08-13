@@ -101,8 +101,11 @@ const UpdateTicketService = async ({
         ticket.whatsappId,
         companyId
       );
+      const hadHumanAttendance =
+        !isNil(ticketTraking.startedAt) && !isNil(ticketTraking.userId);
 
       if (
+        hadHumanAttendance &&
         !ticket.contact.isGroup &&
         !ticket.contact.disableBot &&
         setting?.value === "enabled"
@@ -112,11 +115,16 @@ const UpdateTicketService = async ({
           let bodyRatingMessage = `\u200e${ratingTxt}\n\n`;
           bodyRatingMessage +=
             "Digite de 1 à 3 para qualificar nosso atendimento:\n*1* - _Insatisfeito_\n*2* - _Satisfeito_\n*3* - _Muito Satisfeito_\n\n";
-          await SendWhatsAppMessage({ body: bodyRatingMessage, ticket });
+          const ratingMessageSent = await SendWhatsAppMessage({
+            body: bodyRatingMessage,
+            ticket
+          });
+          await verifyMessage(ratingMessageSent, ticket, ticket.contact);
     
           // Atualiza o rastreamento para indicar que a avaliação foi solicitada
           await ticketTraking.update({
             ratingAt: moment().toDate(),
+            rated: false
           });
     
           // Remove o ticket da lista de abertos
@@ -142,7 +150,8 @@ const UpdateTicketService = async ({
         complationMessage !== ""
       )  {
         const body = `\u200e${complationMessage}`;
-        await SendWhatsAppMessage({ body, ticket });
+        const sentMessage = await SendWhatsAppMessage({ body, ticket });
+        await verifyMessage(sentMessage, ticket, ticket.contact);
       }
       await ticket.update({
         promptId: null,

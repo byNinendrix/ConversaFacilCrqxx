@@ -1631,6 +1631,16 @@ export const verifyRating = (ticketTraking: TicketTraking) => {
   return false;
 };
 
+const getValidRating = (value: string): number | null => {
+  const rating = Number(String(value || "").trim());
+
+  if (!Number.isInteger(rating) || rating < 1 || rating > 3) {
+    return null;
+  }
+
+  return rating;
+};
+
 export const handleRating = async (
   rate: number,
   ticket: Ticket,
@@ -1664,7 +1674,8 @@ export const handleRating = async (
       `\u200e${complationMessage}`,
       ticket.contact
     );
-    await SendWhatsAppMessage({ body, ticket });
+    const sentMessage = await SendWhatsAppMessage({ body, ticket });
+    await verifyMessage(sentMessage, ticket, ticket.contact);
   }
 
   await ticketTraking.update({
@@ -2306,8 +2317,12 @@ const handleMessage = async (
     try {
       if (!msg.key.fromMe && !(contact as any).isGroup) {
         if (ticketTraking !== null && verifyRating(ticketTraking)) {
-          handleRating(parseFloat(bodyMessage), ticket, ticketTraking);
-          return;
+          const rating = getValidRating(bodyMessage);
+
+          if (rating !== null) {
+            await handleRating(rating, ticket, ticketTraking);
+            return;
+          }
         }
       }
     } catch (e) {
@@ -2437,8 +2452,12 @@ const handleMessage = async (
     try {
       if (!msg.key.fromMe) {
         if (ticketTraking !== null && verifyRating(ticketTraking)) {
-          handleRating(parseFloat(bodyMessage), ticket, ticketTraking);
-          return;
+          const rating = getValidRating(bodyMessage);
+
+          if (rating !== null) {
+            await handleRating(rating, ticket, ticketTraking);
+            return;
+          }
         }
       }
     } catch (e) {
